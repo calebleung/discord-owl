@@ -72,7 +72,7 @@ def getInfo(matchType):
             #elif completed >= 4:
             #    data['mapStatus'] = 'WRAPPING UP'
 
-        data['mapStatus'] += ' // {} - {}'.format(score[0], score[1])
+        data['mapStatus'] += ' ({} - {})'.format(score[0], score[1])
 
     else:
         data['mapName'] = '{}'.format(getTimeToMatch(matchData['data'][matchType]['timeToMatch']))
@@ -101,7 +101,7 @@ def getMapData(mapName):
             return (sMap['name']['en_US'], sMap['thumbnail'])
 
 def buildEmbed(data):
-    em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='')
+    em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='', url='https://www.twitch.tv/overwatchleague')
     em.set_author(name='Overwatch League', icon_url='https://blznav.akamaized.net/img/esports/esports-mobile-overwatch-ce8dd5ae960a11f8.png')
     em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=False)
     em.set_thumbnail(url='{}'.format(data['mapThumb']))
