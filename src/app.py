@@ -2,8 +2,12 @@ import discord
 from discord.ext import commands
 
 import asyncio
+import configparser
 import json
 import requests
+
+config = configparser.ConfigParser()
+config.read('config')
 
 description = '''Retrieve OWL info.'''
 client = commands.Bot(command_prefix='!', description=description)
@@ -34,11 +38,19 @@ def getMatch(matchType):
 
     if status == 'LIVE':
         STATES = ['PENDING', 'IN_PROGRESS', 'CONCLUDED']
+        completed = 0
+        inProgress = False
 
         for game in res['data'][matchType]['games']:
+            if game['state'] == STATES[2]:
+                completed += 1
             if game['state'] == STATES[1]:
+                inProgress = True
                 #await client.edit_message(msg, '%s on %s' % (msg.content, game['attributes']['map']).replace('-',' ').title())
                 msg += ' on %s' % game['attributes']['map'].replace('-',' ').title()
+
+        if not inProgress and completed == 2:
+            msg += ' at HALF-TIME'
 
     return msg
 
@@ -46,4 +58,4 @@ def getJSON():
     return json.loads(requests.get('https://api.overwatchleague.com/live-match').text)
 
 
-client.run('token')
+client.run(config['Discord']['token'])
