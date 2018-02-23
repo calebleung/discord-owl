@@ -7,6 +7,7 @@ import json
 import requests
 
 STATES = ['PENDING', 'IN_PROGRESS', 'CONCLUDED']
+#STATUS = ['LIVE', 'UPCOMING']
 
 config = configparser.ConfigParser()
 config.read('config')
@@ -27,33 +28,23 @@ async def on_ready():
 
 @client.command()
 async def status():
-    await client.say(getInfo('liveMatch'))
+    data = getInfo('liveMatch')
+    await client.say(embed=buildEmbed(data))
 
 @client.command()
 async def next():
-    await client.say(getInfo('nextMatch'))
-
-@client.command()
-async def test():
-    data = {}
-    data['teams'] = ['Boston Uprising', 'Philadelphia Fusion']
-    data['mapName'], data['mapThumb'] = getMapData('kings-row')
-    data['completedMaps'] = 2
-
+    data = getInfo('nextMatch')
     await client.say(embed=buildEmbed(data))
 
 def getInfo(matchType):
     data = {}
-    matchData = getMatch()
+    matchData = getMatchData()
 
     if bool(matchData['data'][matchType]) is False:
         matchType = 'liveMatch'
 
     teams = [matchData['data'][matchType]['competitors'][0]['name'], matchData['data'][matchType]['competitors'][1]['name']]
     status = matchData['data'][matchType]['liveStatus']
-
-    #msg = await client.say('%s vs %s is %s' % (teams[0], teams[1], status))
-    msg = '%s vs %s is %s' % (teams[0], teams[1], status)
 
     data['teams'] = teams
 
@@ -66,21 +57,39 @@ def getInfo(matchType):
                 completed += 1
             if game['state'] == STATES[1]:
                 inProgress = True
-                #await client.edit_message(msg, '%s on %s' % (msg.content, game['attributes']['map']).replace('-',' ').title())
-                msg += ' on %s' % game['attributes']['map'].replace('-',' ').title()
                 data['mapName'], data['mapThumb'] = getMapData(game['attributes']['map'])
 
+        data['mapStatus'] = 'Map {}'.format(completed + 1)
+
         if not inProgress:
-            if completed == 2:
-                msg += ' at HALF-TIME'
-            if completed >= 4:
-                msg += ' WRAPPING UP'
+            if completed == 0:
+                data['mapStatus'] = 'PRE-SHOW'
+            elif completed == 2:
+                data['mapStatus'] = 'HALF-TIME'
+            else:
+                data['mapStatus'] = 'WAITING'
+            #elif completed >= 4:
+            #    data['mapStatus'] = 'WRAPPING UP'
 
-        data['completedMaps'] = completed
+    else:
+        data['mapName'] = '{}'.format(getTimeToMatch(matchData['data'][matchType]['timeToMatch']))
+        data['mapThumb'] = 'https://blznav.akamaized.net/img/esports/esports-overwatch-36d8f7f486d363c1.png'
+        data['mapStatus'] = 'COMING SOON'
 
-    return msg
 
-def getMatch():
+    return data
+
+def getTimeToMatch(ms):
+    hours, minutes = divmod(divmod(divmod(ms, 1000)[0], 60)[0], 60)
+    
+    if hours == 0 and minutes == 0:
+        timeToMatch = 'RIGHT NOW'
+    else:
+        timeToMatch = 'in {} hours {} minutes'.format(hours, minutes)
+
+    return timeToMatch
+
+def getMatchData():
     return json.loads(requests.get('https://api.overwatchleague.com/live-match').text)
 
 def getMapData(mapName):
@@ -91,11 +100,8 @@ def getMapData(mapName):
 def buildEmbed(data):
     em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='')
     em.set_author(name='Overwatch League', icon_url='https://blznav.akamaized.net/img/esports/esports-mobile-overwatch-ce8dd5ae960a11f8.png')
-    em.add_field(name='Map {}'.format(data['completedMaps'] + 1), value='{}'.format(data['mapName']), inline=False)
-    #em.add_field(name="Field2", value="hi2", inline=False)
-    #em.set_image(url=client.user.default_avatar_url)
+    em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=False)
     em.set_thumbnail(url='{}'.format(data['mapThumb']))
-    #em.set_footer(text="Hello World", icon_url=client.user.default_avatar_url)
 
     return em
 
