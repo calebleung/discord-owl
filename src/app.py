@@ -30,6 +30,10 @@ async def next():
 
 def getMatch(matchType):
     res = getJSON()
+
+    if bool(res['data'][matchType]) is False:
+        matchType = 'liveMatch'
+
     teams = [res['data'][matchType]['competitors'][0]['name'], res['data'][matchType]['competitors'][1]['name']]
     status = res['data'][matchType]['liveStatus']
 
