@@ -49,6 +49,9 @@ def getInfo(matchType):
 
     data['teams'] = teams
 
+    data['mapName'] = 'GET HYPED!'
+    data['mapThumb'] = 'https://blznav.akamaized.net/img/esports/esports-overwatch-36d8f7f486d363c1.png'
+
     if status == 'LIVE':
         completed = 0
         inProgress = False
@@ -76,7 +79,6 @@ def getInfo(matchType):
 
     else:
         data['mapName'] = '{}'.format(getTimeToMatch(matchData['data'][matchType]['timeToMatch']))
-        data['mapThumb'] = 'https://blznav.akamaized.net/img/esports/esports-overwatch-36d8f7f486d363c1.png'
         data['mapStatus'] = 'COMING SOON'
 
 
