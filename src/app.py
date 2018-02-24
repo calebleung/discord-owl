@@ -45,7 +45,7 @@ def getInfo(matchType):
 
     teams = [matchData['data'][matchType]['competitors'][0]['name'], matchData['data'][matchType]['competitors'][1]['name']]
     status = matchData['data'][matchType]['liveStatus']
-    score = matchData['data'][matchType]['wins']
+    score = matchData['data'][matchType]['scores']
 
     data['teams'] = teams
 
@@ -75,7 +75,7 @@ def getInfo(matchType):
             #elif completed >= 4:
             #    data['mapStatus'] = 'WRAPPING UP'
 
-        data['mapStatus'] += ' ({} - {})'.format(score[0], score[1])
+        data['mapStatus'] += ' ({} - {})'.format(score[0]['value'], score[1]['value'])
 
     else:
         data['mapName'] = '{}'.format(getTimeToMatch(matchData['data'][matchType]['timeToMatch']))
