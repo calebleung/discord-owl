@@ -103,7 +103,7 @@ def getTimeToMatch(ms):
     hours, minutes = divmod(divmod(divmod(ms, 1000)[0], 60)[0], 60)
     
     if hours == 0 and minutes == 0:
-        timeToMatch = 'RIGHT NOW'
+        timeToMatch = 'COMING SOON'
     else:
         timeToMatch = 'in {} hours {} minutes'.format(hours, minutes)
 
