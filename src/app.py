@@ -3,6 +3,7 @@ from discord.ext import commands
 
 import asyncio
 import configparser
+import datetime
 import json
 import requests
 
@@ -90,6 +91,10 @@ def getInfo(matchType):
                     data['mapStatus'] = 'GOING TO OVERTIME'
                 else:
                     data['mapStatus'] = 'WRAPPING UP'
+                    winner = 0
+                    if score[0]['value'] < score[1]['value']:
+                        winner = 1
+                    data['mapName'] = '{} wins!'.format(teams[winner])
             else:
                 data['mapStatus'] = 'WAITING'
 
@@ -125,6 +130,7 @@ def buildEmbed(data):
     em.set_author(name='Overwatch League', icon_url='https://blznav.akamaized.net/img/esports/esports-mobile-overwatch-ce8dd5ae960a11f8.png')
     em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=False)
     em.set_thumbnail(url='{}'.format(data['mapThumb']))
+    em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
 
     return em
 
