@@ -85,10 +85,13 @@ def getInfo(matchType):
                 data['mapStatus'] = 'PRE-SHOW'
             elif completed == 2:
                 data['mapStatus'] = 'HALF-TIME'
+            elif completed >= 4:
+                if score[0]['value'] == score[1]['value']:
+                    data['mapStatus'] = 'GOING TO OVERTIME'
+                else:
+                    data['mapStatus'] = 'WRAPPING UP'
             else:
                 data['mapStatus'] = 'WAITING'
-            #elif completed >= 4:
-            #    data['mapStatus'] = 'WRAPPING UP'
 
         data['mapStatus'] += ' ({} - {})'.format(score[0]['value'], score[1]['value'])
 
