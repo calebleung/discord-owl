@@ -51,6 +51,9 @@ async def updateInfo(msg, matchType):
         data = getInfo('liveMatch')
         await client.edit_message(msg, embed=buildEmbed(data))
 
+    await asyncio.sleep(3600)
+    await client.delete_message(msg)
+
 
 def getInfo(matchType):
     data = {}
