@@ -36,6 +36,21 @@ async def next():
     data = getInfo('nextMatch')
     await client.say(embed=buildEmbed(data))
 
+@client.command()
+async def live():
+    data = getInfo('liveMatch')
+    msg = await client.say(embed=buildEmbed(data))
+
+    rawJSON = getMatchData()
+    await updateInfo(msg, rawJSON['data']['liveMatch']['liveStatus'])
+
+async def updateInfo(msg, matchType):
+    while matchType == 'LIVE':
+        await asyncio.sleep(300)
+        data = getInfo('liveMatch')
+        await client.edit_message(msg, embed=buildEmbed(data))
+
+
 def getInfo(matchType):
     data = {}
     matchData = getMatchData()
