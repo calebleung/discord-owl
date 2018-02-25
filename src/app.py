@@ -137,10 +137,7 @@ def getMatchData(matchType):
 
     if bool(matchData['data']['liveMatch']) is False:
         # Assuming liveMatch is only empty at the end of the week and not during the week prior to Weds
-        global owlStage
-        global owlWeek
-
-        owlStage, owlWeek = getCurrentWeek()
+        getCurrentWeek()
         match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
 
     if bool(match) is False:
@@ -163,6 +160,9 @@ def buildMatchEmbed(data):
     return em
 
 def getCurrentWeek():
+    global owlStage
+    global owlWeek
+
     stages = scheduleData['data']['stages']
     currentUnixTime = int(time.time())
     currentStage = 0
@@ -188,7 +188,7 @@ def getCurrentWeek():
     
     print('Stage {} - Week {}'.format(currentStage, currentWeek + 1))
 
-    return (currentStage, currentWeek)
+    owlStage, owlWeek = (currentStage, currentWeek)
 
 goodBotCount = 0
 
@@ -198,6 +198,6 @@ with open('assets/maps') as jsonMapData:
 with open('assets/schedule') as jsonScheduleData:
     scheduleData = json.load(jsonScheduleData)
 
-owlStage, owlWeek = getCurrentWeek()
+getCurrentWeek()
 
 client.run(config['Discord']['token'])
