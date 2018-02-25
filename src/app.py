@@ -22,7 +22,7 @@ async def on_ready():
     print('Logged in as')
     print(client.user.name)
     print(client.user.id)
-    print('Stage {} - Week {}'.format(owlStage, owlWeek))
+    print('Stage {} - Week {}'.format(owlStage, owlWeek + 1))
     print('------')
     await client.change_presence(game=discord.Game(name='!status !next !live'))  
 
@@ -154,7 +154,7 @@ def getMatchData(matchType):
                 owlStage -= 1
                 # Season is Over!
 
-        print('Stage {} - Week {}'.format(owlStage, owlWeek))
+        print('Stage {} - Week {}'.format(owlStage, owlWeek + 1))
 
     if bool(match) is False:
         match = matchData['data']['liveMatch']
