@@ -69,6 +69,7 @@ def getInfo(matchType):
 
     teams = [matchData['competitors'][0]['name'], matchData['competitors'][1]['name']]
     score = matchData['scores']
+    points = matchData['wins']
 
     try:
         status = matchData['liveStatus']
@@ -77,7 +78,10 @@ def getInfo(matchType):
 
     data['teams'] = teams
 
-    data['mapName'] = 'GET HYPED!'
+    data['matchScore'] = u'\ufeff'
+    data['mapPoints'] = u'\ufeff'
+    data['mapStatus'] = 'COMING SOON'
+    data['mapName'] = u'\ufeff'
     data['mapThumb'] = 'https://blznav.akamaized.net/img/esports/esports-overwatch-36d8f7f486d363c1.png'
 
     if status == 'LIVE':
@@ -92,6 +96,8 @@ def getInfo(matchType):
                 data['mapName'], data['mapThumb'] = getMapData(game['attributes']['map'])
 
         data['mapStatus'] = 'Map {}'.format(completed + 1)
+        data['matchScore'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
+        data['mapPoints'] = '{} - {}'.format(points[0], points[1])
 
         if not inProgress:
             if completed == 0:
@@ -110,13 +116,8 @@ def getInfo(matchType):
             else:
                 data['mapStatus'] = 'WAITING'
 
-        data['mapStatus'] += ' ({} - {})'.format(score[0]['value'], score[1]['value'])
     elif status == 'UPCOMING':
-        data['mapStatus'] = 'COMING SOON'
         data['mapName'] = '{}'.format(getTimeToMatch(matchData['timeToMatch']))
-    else:
-        data['mapStatus'] = 'COMING SOON'
-        data['mapName'] = 'GET HYPED'
 
     return data
 
@@ -153,7 +154,8 @@ def getMapData(mapName):
 def buildMatchEmbed(data):
     em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='', url='https://www.twitch.tv/overwatchleague')
     em.set_author(name='Overwatch League', icon_url='https://blznav.akamaized.net/img/esports/esports-mobile-overwatch-ce8dd5ae960a11f8.png')
-    em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=False)
+    em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=True)
+    em.add_field(name='{}'.format(data['matchScore']), value='{}'.format(data['mapPoints']), inline=True)
     em.set_thumbnail(url='{}'.format(data['mapThumb']))
     em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
 
