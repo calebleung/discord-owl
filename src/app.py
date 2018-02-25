@@ -22,7 +22,6 @@ async def on_ready():
     print('Logged in as')
     print(client.user.name)
     print(client.user.id)
-    print('Stage {} - Week {}'.format(owlStage, owlWeek + 1))
     print('------')
     await client.change_presence(game=discord.Game(name='!status !next !live'))  
 
@@ -141,20 +140,8 @@ def getMatchData(matchType):
         global owlStage
         global owlWeek
 
-        try:
-            if (datetime.datetime.fromtimestamp(scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['endDate']/1000) - datetime.datetime.utcnow()).total_seconds() < 172800:
-                owlWeek += 1
-            match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
-        except IndexError:
-            owlStage += 1
-            owlWeek = 0
-            try:
-                match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
-            except IndexError:
-                owlStage -= 1
-                # Season is Over!
-
-        print('Stage {} - Week {}'.format(owlStage, owlWeek + 1))
+        owlStage, owlWeek = getCurrentWeek()
+        match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
 
     if bool(match) is False:
         match = matchData['data']['liveMatch']
@@ -175,17 +162,31 @@ def buildMatchEmbed(data):
 
     return em
 
-def getCurrentWeek(scheduleData):
+def getCurrentWeek():
     stages = scheduleData['data']['stages']
     currentUnixTime = int(time.time())
     currentStage = 0
     currentWeek = 0
 
-    for stage in stages:
-        for week in stage['weeks']:
-            if currentUnixTime > week['startDate']/1000 and currentUnixTime < week['endDate']:
+    for i, stage in enumerate(stages):
+        for j, week in enumerate(stage['weeks']):
+            if currentUnixTime > week['startDate']/1000 and currentUnixTime < week['endDate']/1000:
+                # We assume the 'id' will always be the same as the position in array
                 currentStage = stage['id']
-                currentWeek = week['id']
+                if (datetime.datetime.fromtimestamp(week['endDate']/1000) - datetime.datetime.fromtimestamp(currentUnixTime)).total_seconds() > 172800:
+                    currentWeek = week['id']
+                else:
+                    try:
+                        currentWeek = stage['weeks'][j+1]['id']
+                    except IndexError:
+                        try:
+                            currentStage = stages[i+1]['id']
+                            currentWeek = 0
+                        except IndexError:
+                            currentStage = stage['id']
+                            # The season is over!
+    
+    print('Stage {} - Week {}'.format(currentStage, currentWeek + 1))
 
     return (currentStage, currentWeek)
 
@@ -197,6 +198,6 @@ with open('assets/maps') as jsonMapData:
 with open('assets/schedule') as jsonScheduleData:
     scheduleData = json.load(jsonScheduleData)
 
-owlStage, owlWeek = getCurrentWeek(scheduleData)
+owlStage, owlWeek = getCurrentWeek()
 
 client.run(config['Discord']['token'])
