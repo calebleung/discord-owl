@@ -6,6 +6,7 @@ import configparser
 import datetime
 import json
 import requests
+import time
 
 STATES = ['PENDING', 'IN_PROGRESS', 'CONCLUDED']
 #STATUS = ['LIVE', 'UPCOMING']
@@ -16,40 +17,48 @@ config.read('config')
 description = '''Retrieve OWL info.'''
 client = commands.Bot(command_prefix='!', description=description)
 
-with open('assets/maps') as jsonMapData:
-    mapData = json.load(jsonMapData)
-
 @client.event
 async def on_ready():
     print('Logged in as')
     print(client.user.name)
     print(client.user.id)
+    print('Stage {} - Week {}'.format(owlStage, owlWeek))
     print('------')
-    await client.change_presence(game=discord.Game(name='!status & !next'))
+    await client.change_presence(game=discord.Game(name='!status !next !live'))  
+
+@client.command()
+async def goodbot():
+    global goodBotCount
+    goodBotCount += 1
+
+    await client.say(u'Beep boop! \u2282((\u30FB\u25BD\u30FB))\u2283 *{}*'.format(goodBotCount))
 
 @client.command()
 async def status():
     data = getInfo('liveMatch')
-    await client.say(embed=buildEmbed(data))
+    await client.say(embed=buildMatchEmbed(data))
 
 @client.command()
 async def next():
     data = getInfo('nextMatch')
-    await client.say(embed=buildEmbed(data))
+    await client.say(embed=buildMatchEmbed(data))
 
 @client.command()
 async def live():
     data = getInfo('liveMatch')
-    msg = await client.say(embed=buildEmbed(data))
+    msg = await client.say(embed=buildMatchEmbed(data))
 
-    rawJSON = getMatchData()
-    await updateInfo(msg, rawJSON['data']['liveMatch']['liveStatus'])
+    rawJSON = getMatchData('liveMatch')
+    try:
+        await updateInfo(msg, rawJSON['liveStatus'])
+    except KeyError:
+        pass
 
 async def updateInfo(msg, matchType):
     while matchType == 'LIVE':
         await asyncio.sleep(300)
         data = getInfo('liveMatch')
-        await client.edit_message(msg, embed=buildEmbed(data))
+        await client.edit_message(msg, embed=buildMatchEmbed(data))
 
     await asyncio.sleep(3600)
     await client.delete_message(msg)
@@ -57,14 +66,15 @@ async def updateInfo(msg, matchType):
 
 def getInfo(matchType):
     data = {}
-    matchData = getMatchData()
+    matchData = getMatchData(matchType)
 
-    if bool(matchData['data'][matchType]) is False:
-        matchType = 'liveMatch'
+    teams = [matchData['competitors'][0]['name'], matchData['competitors'][1]['name']]
+    score = matchData['scores']
 
-    teams = [matchData['data'][matchType]['competitors'][0]['name'], matchData['data'][matchType]['competitors'][1]['name']]
-    status = matchData['data'][matchType]['liveStatus']
-    score = matchData['data'][matchType]['scores']
+    try:
+        status = matchData['liveStatus']
+    except KeyError:
+        status = 'NEXT WEEK'
 
     data['teams'] = teams
 
@@ -75,7 +85,7 @@ def getInfo(matchType):
         completed = 0
         inProgress = False
 
-        for game in matchData['data'][matchType]['games']:
+        for game in matchData['games']:
             if game['state'] == STATES[2]:
                 completed += 1
             if game['state'] == STATES[1]:
@@ -102,11 +112,12 @@ def getInfo(matchType):
                 data['mapStatus'] = 'WAITING'
 
         data['mapStatus'] += ' ({} - {})'.format(score[0]['value'], score[1]['value'])
-
-    else:
-        data['mapName'] = '{}'.format(getTimeToMatch(matchData['data'][matchType]['timeToMatch']))
+    elif status == 'UPCOMING':
         data['mapStatus'] = 'COMING SOON'
-
+        data['mapName'] = '{}'.format(getTimeToMatch(matchData['timeToMatch']))
+    else:
+        data['mapStatus'] = 'COMING SOON'
+        data['mapName'] = 'GET HYPED'
 
     return data
 
@@ -120,15 +131,42 @@ def getTimeToMatch(ms):
 
     return timeToMatch
 
-def getMatchData():
-    return json.loads(requests.get('https://api.overwatchleague.com/live-match').text)
+def getMatchData(matchType):
+    matchData = json.loads(requests.get('https://api.overwatchleague.com/live-match').text)
+
+    match = matchData['data'][matchType]
+
+    if bool(matchData['data']['liveMatch']) is False:
+        # Assuming liveMatch is only empty at the end of the week and not during the week prior to Weds
+        global owlStage
+        global owlWeek
+
+        try:
+            if (datetime.datetime.fromtimestamp(scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['endDate']/1000) - datetime.datetime.utcnow()).total_seconds() < 172800:
+                owlWeek += 1
+            match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
+        except IndexError:
+            owlStage += 1
+            owlWeek = 0
+            try:
+                match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
+            except IndexError:
+                owlStage -= 1
+                # Season is Over!
+
+        print('Stage {} - Week {}'.format(owlStage, owlWeek))
+
+    if bool(match) is False:
+        match = matchData['data']['liveMatch']
+
+    return match
 
 def getMapData(mapName):
     for sMap in mapData:
         if mapName == sMap['id']:
             return (sMap['name']['en_US'], sMap['thumbnail'])
 
-def buildEmbed(data):
+def buildMatchEmbed(data):
     em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='', url='https://www.twitch.tv/overwatchleague')
     em.set_author(name='Overwatch League', icon_url='https://blznav.akamaized.net/img/esports/esports-mobile-overwatch-ce8dd5ae960a11f8.png')
     em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=False)
@@ -136,5 +174,29 @@ def buildEmbed(data):
     em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
 
     return em
+
+def getCurrentWeek(scheduleData):
+    stages = scheduleData['data']['stages']
+    currentUnixTime = int(time.time())
+    currentStage = 0
+    currentWeek = 0
+
+    for stage in stages:
+        for week in stage['weeks']:
+            if currentUnixTime > week['startDate']/1000 and currentUnixTime < week['endDate']:
+                currentStage = stage['id']
+                currentWeek = week['id']
+
+    return (currentStage, currentWeek)
+
+goodBotCount = 0
+
+with open('assets/maps') as jsonMapData:
+    mapData = json.load(jsonMapData)
+
+with open('assets/schedule') as jsonScheduleData:
+    scheduleData = json.load(jsonScheduleData)
+
+owlStage, owlWeek = getCurrentWeek(scheduleData)
 
 client.run(config['Discord']['token'])
