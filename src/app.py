@@ -116,6 +116,10 @@ def getScheduleData(stage, week):
     except IndexError:
         return []
 
+    except TypeError:
+        data.append('Additional matches this week.')
+        return data
+
 def getInfo(matchType):
     data = {}
     matchData = getMatchData(matchType)
