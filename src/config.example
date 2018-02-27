@@ -1,2 +1,6 @@
 [Discord]
 token = AZBC0.tokenstring
+
+[Overwatch]
+logo_icon = https://blznav.akamaized.net/img/esports/esports-mobile-overwatch-ce8dd5ae960a11f8.png
+logo_thumbnail = https://blznav.akamaized.net/img/esports/esports-overwatch-36d8f7f486d363c1.png

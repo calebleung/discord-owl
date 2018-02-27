@@ -62,6 +62,59 @@ async def updateInfo(msg, matchType):
     await asyncio.sleep(3600)
     await client.delete_message(msg)
 
+@client.command()
+async def schedule(*stageWeek):
+    if len(stageWeek) == 0:
+        await buildScheduleEmbed(owlStage, owlWeek)
+    elif len(stageWeek) == 2:
+        # We decrease the given week# by 1. We don't do this for Stage b/c of preseason
+        adjustedWeek = int(stageWeek[1]) - 1
+        await buildScheduleEmbed(int(stageWeek[0]), adjustedWeek)
+    else:
+        await client.say('**Bweeee**! Use `!schedule` or `!schedule <stage#> <week#>`')
+
+async def buildScheduleEmbed(stage, week):
+    # We increase the given week# by 1.
+    adjustedWeek = week + 1
+    data = getScheduleData(stage, week)
+
+    if (len(data) == 0):
+        await client.say('*Zwee?* Could not find a matching stage/week combination for stage {}/week {}'.format(stage, adjustedWeek))
+    else:
+        em = discord.Embed(title='Schedule for Stage {} Week {}'.format(stage, adjustedWeek), description='')
+        em.set_author(name='Overwatch League', icon_url=config['Overwatch']['logo_icon'])
+
+        for i, matches in enumerate(data):
+            em.add_field(name='Day {}'.format(i+1), value='{}'.format(matches), inline=False)
+
+        em.set_thumbnail(url=config['Overwatch']['logo_thumbnail'])
+        em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
+
+        await client.say(embed=em)
+
+def getScheduleData(stage, week):
+    try:
+        data = []
+        day = ''
+        schedule = scheduleData['data']['stages'][stage]['weeks'][week]
+        endDateTS = schedule['matches'][0]['endDateTS']/1000
+
+        for match in schedule['matches']:
+            # If next game is more than 8 hours away, it's scheduled for the next day
+            if (datetime.datetime.fromtimestamp(match['startDateTS']/1000) - datetime.datetime.fromtimestamp(endDateTS)).total_seconds() > 28800:
+                data.append(day)
+                day = ''
+
+            endDateTS = match['endDateTS']/1000
+
+            day += '{} vs {}\n'.format(match['competitors'][0]['name'], match['competitors'][1]['name'])
+
+        data.append(day)
+
+        return data
+
+    except IndexError:
+        return []
 
 def getInfo(matchType):
     data = {}
@@ -82,7 +135,7 @@ def getInfo(matchType):
     data['mapPoints'] = u'\ufeff'
     data['mapStatus'] = 'COMING SOON'
     data['mapName'] = u'\ufeff'
-    data['mapThumb'] = 'https://blznav.akamaized.net/img/esports/esports-overwatch-36d8f7f486d363c1.png'
+    data['mapThumb'] = config['Overwatch']['logo_thumbnail']
 
     if status == 'LIVE':
         completed = 0
@@ -153,7 +206,7 @@ def getMapData(mapName):
 
 def buildMatchEmbed(data):
     em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='', url='https://www.twitch.tv/overwatchleague')
-    em.set_author(name='Overwatch League', icon_url='https://blznav.akamaized.net/img/esports/esports-mobile-overwatch-ce8dd5ae960a11f8.png')
+    em.set_author(name='Overwatch League', icon_url=config['Overwatch']['logo_icon'])
     em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=True)
     em.add_field(name='{}'.format(data['matchScore']), value='{}'.format(data['mapPoints']), inline=True)
     em.set_thumbnail(url='{}'.format(data['mapThumb']))
