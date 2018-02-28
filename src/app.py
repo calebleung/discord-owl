@@ -67,7 +67,7 @@ async def updateInfo(msg, matchType):
     await asyncio.sleep(3600)
     await client.delete_message(msg)
 
-@client.command()
+@client.command(aliases=['stage'])
 async def schedule(*stageWeek):
     if len(stageWeek) == 0:
         await buildScheduleEmbed(owlStage, owlWeek)
@@ -92,7 +92,7 @@ async def buildScheduleEmbed(stage, week):
         em.set_author(name='Overwatch League', icon_url=config['Overwatch']['logo_icon'])
 
         for i, matches in enumerate(data):
-            em.add_field(name='Day {}'.format(i+1), value='{}'.format(matches), inline=False)
+            em.add_field(name='Day {}'.format(i+1), value='{}'.format(matches), inline=True)
 
         em.set_thumbnail(url=config['Overwatch']['logo_thumbnail'])
         em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
@@ -113,8 +113,17 @@ def getScheduleData(stage, week):
                 day = ''
 
             endDateTS = match['endDateTS']/1000
+            teams = [match['competitors'][0]['name'], match['competitors'][1]['name']]
 
-            day += '{} vs {}\n'.format(match['competitors'][0]['name'], match['competitors'][1]['name'])
+            if (datetime.datetime.fromtimestamp(match['startDateTS']/1000) < datetime.datetime.utcnow()):
+                winner = 0
+                if match['wins'][0] < match['wins'][1]:
+                    winner = 1
+                teams[winner] = '**{}**'.format(teams[winner])
+
+                day += '{} ( {} - {} ) {}\n'.format(teams[0], match['wins'][0], match['wins'][1], teams[1])
+            else:
+                day += '{} vs {}\n'.format(teams[0], teams[1])
 
         data.append(day)
     except IndexError:
