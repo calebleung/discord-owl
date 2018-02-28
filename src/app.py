@@ -80,6 +80,8 @@ async def buildScheduleEmbed(stage, week):
 
     if (len(data) == 0):
         await client.say('*Zwee?* Could not find a matching stage/week combination for stage {}/week {}'.format(stage, adjustedWeek))
+    elif data[0] == 'say':
+        await client.say(data[1])
     else:
         em = discord.Embed(title='Schedule for Stage {} Week {}'.format(stage, adjustedWeek), description='')
         em.set_author(name='Overwatch League', icon_url=config['Overwatch']['logo_icon'])
@@ -114,7 +116,7 @@ def getScheduleData(stage, week):
         try:
             # If the stage exists but aren't enabled...
             if (scheduleData['data']['stages'][stage]['enabled'] is False):
-                data.append('There is no date set for Stage {}: {}'.format(stage, scheduleData['data']['stages'][stage]['name']))
+                return ('say', 'No information available for Stage {}: {}'.format(stage, scheduleData['data']['stages'][stage]['name']))
         except IndexError:
             pass
     except TypeError:
