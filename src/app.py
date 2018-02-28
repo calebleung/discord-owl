@@ -115,11 +115,13 @@ def getScheduleData(stage, week):
             endDateTS = match['endDateTS']/1000
             teams = [match['competitors'][0]['name'], match['competitors'][1]['name']]
 
-            if (datetime.datetime.fromtimestamp(match['startDateTS']/1000) < datetime.datetime.utcnow()):
+            if (datetime.datetime.fromtimestamp(match['endDateTS']/1000) < datetime.datetime.utcnow()):
                 winner = 0
                 if match['wins'][0] < match['wins'][1]:
                     winner = 1
-                teams[winner] = '**{}**'.format(teams[winner])
+
+                if match['state'] == STATES[2]:
+                    teams[winner] = '**{}**'.format(teams[winner])
 
                 day += '{} ( {} - {} ) {}\n'.format(teams[0], match['wins'][0], match['wins'][1], teams[1])
             else:
