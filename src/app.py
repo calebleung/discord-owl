@@ -43,6 +43,11 @@ async def next():
     await client.say(embed=buildMatchEmbed(data))
 
 @client.command()
+async def match(matchNum):
+    data = getInfo(matchNum)
+    await client.say(embed=buildMatchEmbed(data))
+
+@client.command()
 async def live():
     data = getInfo('liveMatch')
     msg = await client.say(embed=buildMatchEmbed(data))
@@ -131,12 +136,12 @@ def getInfo(matchType):
 
     teams = [matchData['competitors'][0]['name'], matchData['competitors'][1]['name']]
     score = matchData['scores']
-    points = matchData['wins']
+    winner = 0
 
     try:
         status = matchData['liveStatus']
     except KeyError:
-        status = 'NEXT WEEK'
+        status = 'NOT LIVE'
 
     data['teams'] = teams
 
@@ -145,6 +150,7 @@ def getInfo(matchType):
     data['mapStatus'] = 'COMING SOON'
     data['mapName'] = u'\ufeff'
     data['mapThumb'] = config['Overwatch']['logo_thumbnail']
+    data['url'] = 'https://www.twitch.tv/overwatchleague'
 
     if status == 'LIVE':
         completed = 0
@@ -159,7 +165,7 @@ def getInfo(matchType):
 
         data['mapStatus'] = 'Map {}'.format(completed + 1)
         data['matchScore'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
-        data['mapPoints'] = '{} - {}'.format(points[0], points[1])
+        data['mapPoints'] = '{} - {}'.format(matchData['wins'][0], matchData['wins'][1])
 
         if not inProgress:
             if completed == 0:
@@ -171,15 +177,21 @@ def getInfo(matchType):
                     data['mapStatus'] = 'GOING TO OVERTIME'
                 else:
                     data['mapStatus'] = 'WRAPPING UP'
-                    winner = 0
                     if score[0]['value'] < score[1]['value']:
                         winner = 1
                     data['mapName'] = '{} wins!'.format(teams[winner])
             else:
                 data['mapStatus'] = 'WAITING'
-
     elif status == 'UPCOMING':
         data['mapName'] = '{}'.format(getTimeToMatch(matchData['timeToMatch']))
+    else:
+        if matchData['state'] == STATES[2]:
+            if score[0]['value'] < score[1]['value']:
+                winner = 1
+            data['mapStatus'] = '{} wins!'.format(teams[winner])
+            data['mapName'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
+            data['mapThumb'] = matchData['competitors'][winner]['logo']
+            data['url'] = 'https://overwatchleague.com/en-us/match/{}'.format(matchType)
 
     return data
 
@@ -194,17 +206,20 @@ def getTimeToMatch(ms):
     return timeToMatch
 
 def getMatchData(matchType):
-    matchData = json.loads(requests.get('https://api.overwatchleague.com/live-match').text)
+    if matchType == 'liveMatch' or matchType == 'nextMatch':
+        matchData = json.loads(requests.get('https://api.overwatchleague.com/live-match').text)
 
-    match = matchData['data'][matchType]
+        match = matchData['data'][matchType]
 
-    if bool(matchData['data']['liveMatch']) is False:
-        # Assuming liveMatch is only empty at the end of the week and not during the week prior to Weds
-        getCurrentWeek()
-        match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
+        if bool(matchData['data']['liveMatch']) is False:
+            # Assuming liveMatch is only empty at the end of the week and not during the week prior to Weds
+            getCurrentWeek()
+            match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
 
-    if bool(match) is False:
-        match = matchData['data']['liveMatch']
+        if bool(match) is False:
+            match = matchData['data']['liveMatch']
+    else:
+        match = json.loads(requests.get('https://api.overwatchleague.com/matches/{}'.format(int(matchType))).text)
 
     return match
 
@@ -214,7 +229,7 @@ def getMapData(mapName):
             return (sMap['name']['en_US'], sMap['thumbnail'])
 
 def buildMatchEmbed(data):
-    em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='', url='https://www.twitch.tv/overwatchleague')
+    em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='', url=data['url'])
     em.set_author(name='Overwatch League', icon_url=config['Overwatch']['logo_icon'])
     em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=True)
     em.add_field(name='{}'.format(data['matchScore']), value='{}'.format(data['mapPoints']), inline=True)
