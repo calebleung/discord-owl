@@ -114,9 +114,17 @@ def getScheduleData(stage, week):
         return data
 
     except IndexError:
+        try:
+            # If the stage exists but aren't enabled...
+            if (scheduleData['data']['stages'][stage]['enabled'] is False):
+                data.append('There is no date set for Stage {}: {}'.format(stage, scheduleData['data']['stages'][stage]['name']))
+        except IndexError:
+            pass
+
         return []
 
     except TypeError:
+        # If 'competitors' are None, they aren't set for Title Matches at the end of Stages
         data.append('Additional matches this week.')
         return data
 
