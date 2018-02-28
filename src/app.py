@@ -70,11 +70,21 @@ async def updateInfo(msg, matchType):
 @client.command(aliases=['stage'])
 async def schedule(*stageWeek):
     if len(stageWeek) == 0:
-        await buildScheduleEmbed(owlStage, owlWeek)
-    elif len(stageWeek) == 2:
         # We decrease the given week# by 1. We don't do this for Stage b/c of preseason
-        adjustedWeek = int(stageWeek[1]) - 1
-        await buildScheduleEmbed(int(stageWeek[0]), adjustedWeek)
+        await buildScheduleEmbed(owlStage, owlWeek - 1)
+    elif len(stageWeek) == 2:
+        try:
+            stageWeek = [int(stageWeek[0]), int(stageWeek[1])]
+            if stageWeek[0] < 0:
+                await client.say('*Weeooo!* Stage must be greater than 1')
+            elif stageWeek[1] < 1:
+                await client.say('*Weeooo!* Week must be greater than 0!')
+            else:
+                # We decrease the given week# by 1. We don't do this for Stage b/c of preseason
+                adjustedWeek = stageWeek[1] - 1
+                await buildScheduleEmbed(stageWeek[0], adjustedWeek)
+        except ValueError:
+            await client.say('*Weeooo!* Stage & Week must be whole numbers!')
     else:
         await client.say('**Bweeee**! Use `!schedule` or `!schedule <stage#> <week#>`')
 
@@ -83,7 +93,7 @@ async def buildScheduleEmbed(stage, week):
     adjustedWeek = week + 1
     data = getScheduleData(stage, week)
 
-    if (len(data) == 0):
+    if len(data) == 0:
         await client.say('*Zwee?* Could not find a matching stage/week combination for stage {}/week {}'.format(stage, adjustedWeek))
     elif data[0] == 'say':
         await client.say(data[1])
@@ -162,6 +172,7 @@ def getInfo(matchType):
     data['mapName'] = u'\ufeff'
     data['mapThumb'] = config['Overwatch']['logo_thumbnail']
     data['url'] = 'https://www.twitch.tv/overwatchleague'
+    data['footer'] = u'\ufeff'
 
     if status == 'LIVE':
         completed = 0
@@ -193,8 +204,11 @@ def getInfo(matchType):
                     data['mapName'] = '{} wins!'.format(teams[winner])
             else:
                 data['mapStatus'] = 'WAITING'
+
+        data['footer'] = 'Stage {} Week {}'.format(owlStage, owlWeek)
     elif status == 'UPCOMING':
         data['mapName'] = '{}'.format(getTimeToMatch(matchData['timeToMatch']))
+        data['footer'] = 'Stage {} Week {}'.format(owlStage, owlWeek)
     else:
         if matchData['state'] == STATES[2]:
             if score[0]['value'] < score[1]['value']:
@@ -245,7 +259,7 @@ def buildMatchEmbed(data):
     em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=True)
     em.add_field(name='{}'.format(data['matchScore']), value='{}'.format(data['mapPoints']), inline=True)
     em.set_thumbnail(url='{}'.format(data['mapThumb']))
-    em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
+    em.set_footer(text='{} {}'.format(data['footer'], datetime.datetime.utcnow().strftime('%s')))
 
     return em
 
@@ -276,7 +290,10 @@ def getCurrentWeek():
                             currentStage = stage['id']
                             # The season is over!
     
-    print('Stage {} - Week {}'.format(currentStage, currentWeek + 1))
+    # Week # is off by 1 while Stage # isn't due to the latter's pre-season stage
+    currentWeek += 1
+
+    print('Stage {} - Week {}'.format(currentStage, currentWeek))
 
     owlStage, owlWeek = (currentStage, currentWeek)
 
