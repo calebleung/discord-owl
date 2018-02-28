@@ -110,9 +110,6 @@ def getScheduleData(stage, week):
             day += '{} vs {}\n'.format(match['competitors'][0]['name'], match['competitors'][1]['name'])
 
         data.append(day)
-
-        return data
-
     except IndexError:
         try:
             # If the stage exists but aren't enabled...
@@ -120,13 +117,11 @@ def getScheduleData(stage, week):
                 data.append('There is no date set for Stage {}: {}'.format(stage, scheduleData['data']['stages'][stage]['name']))
         except IndexError:
             pass
-
-        return []
-
     except TypeError:
         # If 'competitors' are None, they aren't set for Title Matches at the end of Stages
         data.append('Additional matches this week.')
-        return data
+
+    return data
 
 def getInfo(matchType):
     data = {}
