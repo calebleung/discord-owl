@@ -111,6 +111,9 @@ async def buildScheduleEmbed(stage, week):
 
 def getScheduleData(stage, week):
     try:
+        global scheduleData
+        scheduleData = json.loads(requests.get('https://api.overwatchleague.com/schedule').text)
+
         data = []
         day = ''
         schedule = scheduleData['data']['stages'][stage]['weeks'][week]
@@ -187,9 +190,10 @@ def getInfo(matchType):
 
         data['mapStatus'] = 'Map {}'.format(completed + 1)
         data['matchScore'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
-        data['mapPoints'] = '{} - {}'.format(matchData['wins'][0], matchData['wins'][1])
 
-        if not inProgress:
+        if inProgress:
+            data['mapPoints'] = '{} - {}'.format(matchData['wins'][0], matchData['wins'][1])
+        else:
             if completed == 0:
                 data['mapStatus'] = 'PRE-SHOW'
             elif completed == 2:
