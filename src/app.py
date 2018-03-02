@@ -187,13 +187,12 @@ def getInfo(matchType):
             if game['state'] == STATES[1]:
                 inProgress = True
                 data['mapName'], data['mapThumb'] = getMapData(game['attributes']['map'])
+                data['mapPoints'] = '{} - {}'.format(game['points'][0], game['points'][1])
 
         data['mapStatus'] = 'Map {}'.format(completed + 1)
         data['matchScore'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
 
-        if inProgress:
-            data['mapPoints'] = '{} - {}'.format(matchData['wins'][0], matchData['wins'][1])
-        else:
+        if not inProgress:
             if completed == 0:
                 data['mapStatus'] = 'PRE-SHOW'
             elif completed == 2:
