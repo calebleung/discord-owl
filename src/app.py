@@ -40,7 +40,10 @@ async def status():
 @client.command()
 async def next():
     data = getInfo('nextMatch')
-    await client.say(embed=buildMatchEmbed(data))
+    msg = await client.say(embed=buildMatchEmbed(data))
+
+    await asyncio.sleep(data['timeToMatchSecs'])
+    await client.delete_message(msg)
 
 @client.command()
 async def match(matchNum):
@@ -210,6 +213,7 @@ def getInfo(matchType):
 
         data['footer'] = 'Stage {} Week {}'.format(owlStage, owlWeek)
     elif status == 'UPCOMING':
+        data['timeToMatchSecs'] = matchData['timeToMatch'] / 1000
         data['mapName'] = '{}'.format(getTimeToMatch(matchData['timeToMatch']))
         data['footer'] = 'Stage {} Week {}'.format(owlStage, owlWeek)
     else:
