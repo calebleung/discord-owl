@@ -284,7 +284,8 @@ def getCurrentWeek():
             if currentUnixTime > week['startDate']/1000 and currentUnixTime < week['endDate']/1000:
                 # We assume the 'id' will always be the same as the position in array
                 currentStage = stage['id']
-                if (datetime.datetime.fromtimestamp(week['endDate']/1000) - datetime.datetime.fromtimestamp(currentUnixTime)).total_seconds() > 172800:
+
+                if (datetime.datetime.fromtimestamp(week['endDate']/1000) - datetime.datetime.fromtimestamp(currentUnixTime)).total_seconds() > 108000:
                     currentWeek = week['id']
                 else:
                     try:
