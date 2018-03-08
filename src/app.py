@@ -120,18 +120,21 @@ def getScheduleData(stage, week):
         data = []
         day = ''
         schedule = scheduleData['data']['stages'][stage]['weeks'][week]
-        endDateTS = schedule['matches'][0]['endDateTS']/1000
+        endDateTSinSecs = schedule['matches'][0]['endDateTS']/1000
+
+        if datetime.datetime.fromtimestamp(schedule['endDate']/1000) < datetime.datetime.utcnow():
+            getCurrentWeek()
 
         for match in schedule['matches']:
             # If next game is more than 8 hours away, it's scheduled for the next day
-            if (datetime.datetime.fromtimestamp(match['startDateTS']/1000) - datetime.datetime.fromtimestamp(endDateTS)).total_seconds() > 28800:
+            if (datetime.datetime.fromtimestamp(match['startDateTS']/1000) - datetime.datetime.fromtimestamp(endDateTSinSecs)).total_seconds() > 28800:
                 data.append(day)
                 day = ''
 
-            endDateTS = match['endDateTS']/1000
+            endDateTSinSecs = match['endDateTS']/1000
             teams = [match['competitors'][0]['name'], match['competitors'][1]['name']]
 
-            if (datetime.datetime.fromtimestamp(match['endDateTS']/1000) < datetime.datetime.utcnow()):
+            if datetime.datetime.fromtimestamp(endDateTSinSecs) < datetime.datetime.utcnow():
                 winner = 0
                 if match['wins'][0] < match['wins'][1]:
                     winner = 1
