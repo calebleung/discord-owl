@@ -5,6 +5,7 @@ import asyncio
 import configparser
 import datetime
 import json
+import re
 import requests
 import time
 
@@ -77,7 +78,8 @@ async def schedule(*stageWeek):
         await buildScheduleEmbed(owlStage, owlWeek - 1)
     elif len(stageWeek) == 2:
         try:
-            stageWeek = [int(stageWeek[0]), int(stageWeek[1])]
+            #stageWeek = [int(stageWeek[0]), int(stageWeek[1])]
+            stageWeek = [int(re.search('\d+', stageWeek[0]).group()), int(re.search('\d+', stageWeek[1]).group())]
             if stageWeek[0] < 0:
                 await client.say('*Weeooo!* Stage must be greater than 1')
             elif stageWeek[1] < 1:
