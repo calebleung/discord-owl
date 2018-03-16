@@ -71,7 +71,7 @@ async def updateInfo(msg, matchType):
     await asyncio.sleep(3600)
     await client.delete_message(msg)
 
-@client.command(aliases=['stage'])
+@client.command(aliases=['stage', 'sch'])
 async def schedule(*stageWeek):
     if len(stageWeek) == 0:
         # We decrease the given week# by 1. We don't do this for Stage b/c of preseason
