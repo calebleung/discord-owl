@@ -96,7 +96,7 @@ async def schedule(*stageWeek):
 async def buildScheduleEmbed(stage, week):
     # We increase the given week# by 1.
     adjustedWeek = week + 1
-    data = getScheduleData(stage, week)
+    data = await getScheduleData(stage, week)
 
     if len(data) == 0:
         await client.say('*Zwee?* Could not find a matching stage/week combination for stage {}/week {}'.format(stage, adjustedWeek))
@@ -114,7 +114,7 @@ async def buildScheduleEmbed(stage, week):
 
         await client.say(embed=em)
 
-def getScheduleData(stage, week):
+async def getScheduleData(stage, week):
     try:
         global scheduleData
         scheduleData = json.loads(requests.get('https://api.overwatchleague.com/schedule').text)
@@ -195,12 +195,20 @@ def getInfo(matchType):
             if game['state'] == STATES[1]:
                 inProgress = True
                 data['mapName'], data['mapThumb'] = getMapData(game['attributes']['map'])
-                data['mapPoints'] = '{} - {}'.format(game['points'][0], game['points'][1])
+                try:
+                    data['mapPoints'] = '{} - {}'.format(game['points'][0], game['points'][1])
+                except KeyError:
+                    data['mapPoints'] = '0 - 0'
 
         data['mapStatus'] = 'Map {}'.format(completed + 1)
         data['matchScore'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
 
         if not inProgress:
+            try:
+                data['mapName'] = 'Next map: {}'.format(getMapData(matchData['games'][completed]['attributes']['map'])[0])
+            except KeyError:
+                pass
+
             if completed == 0:
                 data['mapStatus'] = 'PRE-SHOW'
             elif completed == 2:
