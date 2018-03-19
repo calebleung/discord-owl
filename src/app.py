@@ -206,7 +206,7 @@ def getInfo(matchType):
         if not inProgress:
             try:
                 data['mapName'] = 'Next map: {}'.format(getMapData(matchData['games'][completed]['attributes']['map'])[0])
-            except KeyError:
+            except (KeyError, IndexError):
                 pass
 
             if completed == 0:
