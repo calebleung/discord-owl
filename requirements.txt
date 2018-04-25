@@ -1,2 +1,2 @@
-discord
-requests
+https://github.com/Rapptz/discord.py/archive/rewrite.zip#egg=discord.py
+https://github.com/calebleung/asyncio-owl/archive/master.zip#egg=asyncio_owl

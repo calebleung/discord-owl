@@ -1,13 +1,18 @@
 import discord
 from discord.ext import commands
 
+from asyncio_owl import ClientOWL
+
 import asyncio
 import configparser
 import datetime
 import json
+import logging
 import re
-import requests
 import time
+
+ONE_DAY_IN_SECONDS = 86400
+EIGHT_HOURS_IN_SECONDS = 28800
 
 STATES = ['PENDING', 'IN_PROGRESS', 'CONCLUDED']
 #STATUS = ['LIVE', 'UPCOMING']
@@ -16,127 +21,106 @@ config = configparser.ConfigParser()
 config.read('config')
 
 description = '''Retrieve OWL info.'''
-client = commands.Bot(command_prefix='!', description=description)
+logging.basicConfig(level=logging.INFO)
 
-@client.event
+bot = commands.Bot(command_prefix='!!', description=description)
+bot.goodbotCount = 0
+
+bot.schedule = {}
+bot.stage = {}
+bot.week = {}
+bot.match = 0
+bot.secondsToNextMatch = 0
+bot.waitingForNextMatch = False
+
+bot.liveMatch = {}
+bot.nextMatch = {}
+
+@bot.event
 async def on_ready():
     print('Logged in as')
-    print(client.user.name)
-    print(client.user.id)
+    print(bot.user.name)
+    print(bot.user.id)
     print('------')
-    await client.change_presence(game=discord.Game(name='!live !next !schedule'))  
 
-@client.command()
-async def goodbot():
-    global goodBotCount
-    goodBotCount += 1
+async def background_getLiveMatch():
+    async with ClientOWL(loop=asyncio.get_event_loop()) as owl:    
+        matchData = await owl.live_match()
+    while any(matchData['nextMatch']):
+        print('looping',matchData['liveMatch']['timeToMatch'])
+        
+        await asyncio.sleep(30)
+        async with ClientOWL(loop=asyncio.get_event_loop()) as owl:
+            matchData = await owl.live_match()
 
-    await client.say(u'Beep boop! \u2282((\u30FB\u25BD\u30FB))\u2283 *{}*'.format(goodBotCount))
+async def background_waitForNextMatch():
+    await asyncio.sleep(bot.secondsToNextMatch)
+    bot.loop.create_task(background_getLiveMatch())         
+    bot.waitingForNextMatch = False
 
-@client.command()
-async def status():
-    data = getInfo('liveMatch')
-    await client.say(embed=buildMatchEmbed(data))
+async def background_getCurrentWeek():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        async with ClientOWL(loop=asyncio.get_event_loop()) as owl:
+            bot.schedule = await owl.schedule()
+            for i, stage in enumerate(bot.schedule):
+                for j, week in enumerate(stage['weeks']):
+                    for k, match in enumerate(week['matches']):
+                        if int(match['startDateTS']/1000 - time.time()) > 0:
+                            bot.stage = stage
+                            bot.week = week
+                            bot.secondsToNextMatch = int(match['startDateTS']/1000 - time.time())
+                            print('Next: Stage {}, Week {}, Match {}: {}'.format(i, j+1, k+1, bot.secondsToNextMatch))
+                            if bot.waitingForNextMatch is False:
+                                if any(owl.live_match('nextMatch')):
+                                    bot.loop.create_task(background_getLiveMatch())
+                                else:
+                                    bot.waitingForNextMatch = True
+                                    bot.loop.create_task(background_waitForNextMatch())
+                            return
+            await asyncio.sleep(ONE_DAY_IN_SECONDS)
 
-@client.command()
-async def next():
-    data = getInfo('nextMatch')
-    msg = await client.say(embed=buildMatchEmbed(data))
+async def my_background_task():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        bot.goodbotCount += 1
+        await channel.send(u'Beep boop! \u2282((\u30FB\u25BD\u30FB))\u2283 *{}*'.format(bot.goodbotCount))
+        await asyncio.sleep(ONE_DAY_IN_SECONDS) # task runs every 60 seconds
 
-    await asyncio.sleep(data['timeToMatchSecs'])
-    await client.delete_message(msg)
-
-@client.command()
-async def match(matchNum):
-    data = getInfo(matchNum)
-    await client.say(embed=buildMatchEmbed(data))
-
-@client.command()
-async def live():
-    data = getInfo('liveMatch')
-    msg = await client.say(embed=buildMatchEmbed(data))
-
-    rawJSON = getMatchData('liveMatch')
-    try:
-        await updateInfo(msg, rawJSON['liveStatus'])
-    except KeyError:
-        pass
-
-async def updateInfo(msg, matchType):
-    while matchType == 'LIVE':
-        await asyncio.sleep(300)
-        data = getInfo('liveMatch')
-        await client.edit_message(msg, embed=buildMatchEmbed(data))
-
-    await asyncio.sleep(3600)
-    await client.delete_message(msg)
-
-@client.command(aliases=['stage', 'sch'])
-async def schedule(*stageWeek):
-    if len(stageWeek) == 0:
-        # We decrease the given week# by 1. We don't do this for Stage b/c of preseason
-        await buildScheduleEmbed(owlStage, owlWeek - 1)
-    elif len(stageWeek) == 2:
-        try:
-            #stageWeek = [int(stageWeek[0]), int(stageWeek[1])]
-            stageWeek = [int(re.search('\d+', stageWeek[0]).group()), int(re.search('\d+', stageWeek[1]).group())]
-            if stageWeek[0] < 0:
-                await client.say('*Weeooo!* Stage must be greater than 1')
-            elif stageWeek[1] < 1:
-                await client.say('*Weeooo!* Week must be greater than 0!')
-            else:
-                # We decrease the given week# by 1. We don't do this for Stage b/c of preseason
-                adjustedWeek = stageWeek[1] - 1
-                await buildScheduleEmbed(stageWeek[0], adjustedWeek)
-        except ValueError:
-            await client.say('*Weeooo!* Stage & Week must be whole numbers!')
+@bot.command(aliases=['sch'])
+async def schedule(ctx, stage=-1, week=-1):
+    if stage == -1:
+        stage = bot.stage['id']
+    if week == -1:
+        week = bot.week['id']
     else:
-        await client.say('**Bweeee**! Use `!schedule` or `!schedule <stage#> <week#>`')
+        week -= 1
 
-async def buildScheduleEmbed(stage, week):
-    # We increase the given week# by 1.
-    adjustedWeek = week + 1
-    data = await getScheduleData(stage, week)
-
-    if len(data) == 0:
-        await client.say('*Zwee?* Could not find a matching stage/week combination for stage {}/week {}'.format(stage, adjustedWeek))
-    elif data[0] == 'say':
-        await client.say(data[1])
-    else:
-        em = discord.Embed(title='Schedule for Stage {} Week {}'.format(stage, adjustedWeek), description='')
-        em.set_author(name='Overwatch League', icon_url=config['Overwatch']['logo_icon'])
-
-        for i, matches in enumerate(data):
-            em.add_field(name='Day {}'.format(i+1), value='{}'.format(matches), inline=True)
-
-        em.set_thumbnail(url=config['Overwatch']['logo_thumbnail'])
-        em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
-
-        await client.say(embed=em)
-
-async def getScheduleData(stage, week):
     try:
-        global scheduleData
-        scheduleData = json.loads(requests.get('https://api.overwatchleague.com/schedule').text)
+        weeklySchedule = bot.schedule[stage]['weeks'][week]
+    except IndexError:
+        if bot.schedule[stage]['enabled'] is False:
+            await ctx.send('**Bweeee**! Schedule for {} isn\'t live yet!'.format(bot.schedule[stage]['name']))
+            return
+        stage = bot.stage['id']
+        week = bot.week['id']
+        weeklySchedule = bot.schedule[stage]['weeks'][week]
+        await ctx.send('*Zwee?* Could not find a matching stage/week combination!')
+    
+    prevMatchTime = weeklySchedule['matches'][0]['endDateTS']/1000
+    matches = []
+    day = ''
 
-        data = []
-        day = ''
-        schedule = scheduleData['data']['stages'][stage]['weeks'][week]
-        endDateTSinSecs = schedule['matches'][0]['endDateTS']/1000
-
-        if datetime.datetime.fromtimestamp(schedule['endDate']/1000) < datetime.datetime.utcnow():
-            getCurrentWeek()
-
-        for match in schedule['matches']:
-            # If next game is more than 8 hours away, it's scheduled for the next day
-            if (datetime.datetime.fromtimestamp(match['startDateTS']/1000) - datetime.datetime.fromtimestamp(endDateTSinSecs)).total_seconds() > 28800:
-                data.append(day)
+    try:
+        for match in weeklySchedule['matches']:
+            if (datetime.datetime.fromtimestamp(match['startDateTS']/1000) - datetime.datetime.fromtimestamp(prevMatchTime)).total_seconds() > EIGHT_HOURS_IN_SECONDS:
+                matches.append(day)
                 day = ''
 
-            endDateTSinSecs = match['endDateTS']/1000
+            prevMatchTime = match['endDateTS']/1000
             teams = [match['competitors'][0]['name'], match['competitors'][1]['name']]
 
-            if datetime.datetime.fromtimestamp(endDateTSinSecs) < datetime.datetime.utcnow():
+            if datetime.datetime.fromtimestamp(prevMatchTime) < datetime.datetime.utcnow():
                 winner = 0
                 if match['wins'][0] < match['wins'][1]:
                     winner = 1
@@ -147,185 +131,27 @@ async def getScheduleData(stage, week):
                 day += '{} ( {} - {} ) {}\n'.format(teams[0], match['wins'][0], match['wins'][1], teams[1])
             else:
                 day += '{} vs {}\n'.format(teams[0], teams[1])
-
-        data.append(day)
-    except IndexError:
-        try:
-            # If the stage exists but aren't enabled...
-            if (scheduleData['data']['stages'][stage]['enabled'] is False):
-                return ('say', 'No information available for Stage {}: {}'.format(stage, scheduleData['data']['stages'][stage]['name']))
-        except IndexError:
-            pass
+        matches.append(day)
     except TypeError:
         # If 'competitors' are None, they aren't set for Title Matches at the end of Stages
-        data.append('Additional matches this week.')
+        matches.append('Stage playoffs this week!')
 
-    return data
-
-def getInfo(matchType):
-    data = {}
-    matchData = getMatchData(matchType)
-
-    teams = [matchData['competitors'][0]['name'], matchData['competitors'][1]['name']]
-    score = matchData['scores']
-    winner = 0
-
-    try:
-        status = matchData['liveStatus']
-    except KeyError:
-        status = 'NOT LIVE'
-
-    data['teams'] = teams
-
-    data['matchScore'] = u'\ufeff'
-    data['mapPoints'] = u'\ufeff'
-    data['mapStatus'] = 'COMING SOON'
-    data['mapName'] = u'\ufeff'
-    data['mapThumb'] = config['Overwatch']['logo_thumbnail']
-    data['url'] = 'https://www.twitch.tv/overwatchleague'
-    data['footer'] = u'\ufeff'
-
-    if status == 'LIVE':
-        completed = 0
-        inProgress = False
-
-        for game in matchData['games']:
-            if game['state'] == STATES[2]:
-                completed += 1
-            if game['state'] == STATES[1]:
-                inProgress = True
-                data['mapName'], data['mapThumb'] = getMapData(game['attributes']['map'])
-                try:
-                    data['mapPoints'] = '{} - {}'.format(game['points'][0], game['points'][1])
-                except KeyError:
-                    data['mapPoints'] = '0 - 0'
-
-        data['mapStatus'] = 'Map {}'.format(completed + 1)
-        data['matchScore'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
-
-        if not inProgress:
-            try:
-                data['mapName'] = 'Next map: {}'.format(getMapData(matchData['games'][completed]['attributes']['map'])[0])
-            except (KeyError, IndexError):
-                pass
-
-            if completed == 0:
-                data['mapStatus'] = 'PRE-SHOW'
-            elif completed == 2:
-                data['mapStatus'] = 'HALF-TIME'
-            elif completed >= 4:
-                if score[0]['value'] == score[1]['value']:
-                    data['mapStatus'] = 'GOING TO OVERTIME'
-                else:
-                    data['mapStatus'] = 'WRAPPING UP'
-                    if score[0]['value'] < score[1]['value']:
-                        winner = 1
-                    data['mapName'] = '{} wins!'.format(teams[winner])
-            else:
-                data['mapStatus'] = 'WAITING'
-
-        data['footer'] = 'Stage {} Week {}'.format(owlStage, owlWeek)
-    elif status == 'UPCOMING':
-        data['timeToMatchSecs'] = matchData['timeToMatch'] / 1000
-        data['mapName'] = '{}'.format(getTimeToMatch(matchData['timeToMatch']))
-        data['footer'] = 'Stage {} Week {}'.format(owlStage, owlWeek)
-    else:
-        if matchData['state'] == STATES[2]:
-            if score[0]['value'] < score[1]['value']:
-                winner = 1
-            data['mapStatus'] = '{} wins!'.format(teams[winner])
-            data['mapName'] = '{} - {}'.format(score[0]['value'], score[1]['value'])
-            data['mapThumb'] = matchData['competitors'][winner]['logo']
-            data['url'] = 'https://overwatchleague.com/en-us/match/{}'.format(matchType)
-
-    return data
-
-def getTimeToMatch(ms):
-    hours, minutes = divmod(divmod(divmod(ms, 1000)[0], 60)[0], 60)
-    
-    if hours == 0 and minutes == 0:
-        timeToMatch = 'COMING SOON'
-    else:
-        timeToMatch = 'in {} hours {} minutes'.format(hours, minutes)
-
-    return timeToMatch
-
-def getMatchData(matchType):
-    if matchType == 'liveMatch' or matchType == 'nextMatch':
-        matchData = json.loads(requests.get('https://api.overwatchleague.com/live-match').text)
-
-        match = matchData['data'][matchType]
-
-        if bool(matchData['data']['liveMatch']) is False:
-            # Assuming liveMatch is only empty at the end of the week and not during the week prior to Weds
-            getCurrentWeek()
-            match = scheduleData['data']['stages'][owlStage]['weeks'][owlWeek]['matches'][0]
-
-        if bool(match) is False:
-            match = matchData['data']['liveMatch']
-    else:
-        match = json.loads(requests.get('https://api.overwatchleague.com/matches/{}'.format(int(matchType))).text)
-
-    return match
-
-def getMapData(mapName):
-    for sMap in mapData:
-        if mapName == sMap['id']:
-            return (sMap['name']['en_US'], sMap['thumbnail'])
-
-def buildMatchEmbed(data):
-    em = discord.Embed(title='{} vs {}'.format(data['teams'][0], data['teams'][1]), description='', url=data['url'])
+    em = discord.Embed(title='Schedule for {} {}'.format(bot.schedule[stage]['name'], bot.schedule[stage]['weeks'][week]['name']), description='')
     em.set_author(name='Overwatch League', icon_url=config['Overwatch']['logo_icon'])
-    em.add_field(name='{}'.format(data['mapStatus']), value='{}'.format(data['mapName']), inline=True)
-    em.add_field(name='{}'.format(data['matchScore']), value='{}'.format(data['mapPoints']), inline=True)
-    em.set_thumbnail(url='{}'.format(data['mapThumb']))
-    em.set_footer(text='{} {}'.format(data['footer'], datetime.datetime.utcnow().strftime('%s')))
 
-    return em
+    for i, day in enumerate(matches):
+        em.add_field(name='Day {}'.format(i+1), value='{}'.format(day), inline=True)
 
-def getCurrentWeek():
-    global owlStage
-    global owlWeek
+    em.set_thumbnail(url=config['Overwatch']['logo_thumbnail'])
+    em.set_footer(text='{}'.format(datetime.datetime.utcnow().strftime('%-I:%M:%S UTC')))
 
-    stages = scheduleData['data']['stages']
-    currentUnixTime = int(time.time())
-    currentStage = 0
-    currentWeek = 0
+    await ctx.send(embed=em)
 
-    for i, stage in enumerate(stages):
-        for j, week in enumerate(stage['weeks']):
-            if currentUnixTime > week['startDate']/1000 and currentUnixTime < week['endDate']/1000:
-                # We assume the 'id' will always be the same as the position in array
-                currentStage = stage['id']
+@bot.command()
+async def goodbot():
+    bot.goodbotCount += 1
 
-                if (datetime.datetime.fromtimestamp(week['endDate']/1000) - datetime.datetime.fromtimestamp(currentUnixTime)).total_seconds() > 108000:
-                    currentWeek = week['id']
-                else:
-                    try:
-                        currentWeek = stage['weeks'][j+1]['id']
-                    except IndexError:
-                        try:
-                            currentStage = stages[i+1]['id']
-                            currentWeek = 0
-                        except IndexError:
-                            currentStage = stage['id']
-                            # The season is over!
-    
-    # Week # is off by 1 while Stage # isn't due to the latter's pre-season stage
-    currentWeek += 1
+    msg = await ctx.send(u'Beep boop! \u2282((\u30FB\u25BD\u30FB))\u2283 *{}*'.format(bot.goodbotCount))
 
-    print('Stage {} - Week {}'.format(currentStage, currentWeek))
-
-    owlStage, owlWeek = (currentStage, currentWeek)
-
-goodBotCount = 0
-
-with open('assets/maps') as jsonMapData:
-    mapData = json.load(jsonMapData)
-
-with open('assets/schedule') as jsonScheduleData:
-    scheduleData = json.load(jsonScheduleData)
-
-getCurrentWeek()
-
-client.run(config['Discord']['token'])
+bot.loop.create_task(background_getCurrentWeek())
+bot.run(config['Discord']['token'])
