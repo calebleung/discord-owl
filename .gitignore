@@ -1,6 +1,7 @@
 bin/
 include/
 lib/
+man/
 src/config
 pip-selfcheck.json
 .Python
